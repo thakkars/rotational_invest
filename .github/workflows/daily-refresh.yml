@@ -1,0 +1,45 @@
+name: Daily Rotation Refresh
+
+on:
+  schedule:
+    - cron: '30 10 * * 1-5'   # 4:00 PM IST (UTC+5:30) = 10:30 UTC, Mon-Fri only
+  workflow_dispatch:            # Allow manual trigger from GitHub UI
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run rotation script
+        env:
+          TV_USERNAME: ${{ secrets.TV_USERNAME }}
+          TV_PASSWORD: ${{ secrets.TV_PASSWORD }}
+          FILE_PATH:   output/rotation_invest.xlsx
+          HTML_PATH:   output/index.html
+        run: python rotation_invest.py
+
+      - name: Commit and push updated files
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name  "GitHub Action"
+          git add output/rotation_invest.xlsx output/index.html
+          git diff --staged --quiet || git commit -m "[auto] Daily refresh $(date +'%d-%m-%Y %H:%M IST')"
+          git push
