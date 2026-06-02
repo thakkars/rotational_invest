@@ -2,7 +2,7 @@ import os
 import time
 import json
 import pandas as pd
-from tvDatafeed import TvDatafeed, Interval
+from tvdatafeed import TvDatafeed, Interval
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Alignment
 from openpyxl.utils import get_column_letter
