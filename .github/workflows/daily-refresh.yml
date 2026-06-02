@@ -27,6 +27,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Download existing Excel from Cloudflare R2 (if available)
+        env:
+          AWS_ACCESS_KEY_ID:     ${{ secrets.R2_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_KEY }}
+          AWS_DEFAULT_REGION:    auto
+        run: |
+          mkdir -p output
+          aws s3 cp s3://${{ secrets.R2_BUCKET }}/rotation_invest.xlsx output/rotation_invest.xlsx \
+            --endpoint-url ${{ secrets.R2_ENDPOINT }} \
+            --no-progress || echo "No existing file in R2, starting fresh."
+
       - name: Run rotation script
         env:
           FILE_PATH: output/rotation_invest.xlsx
