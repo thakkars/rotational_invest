@@ -2,9 +2,8 @@ import os
 import time
 import json
 import pandas as pd
-from tvdatafeed import TvDatafeed, Interval
+import yfinance as yf
 from openpyxl import load_workbook, Workbook
-from openpyxl.styles import Alignment
 from openpyxl.utils import get_column_letter
 
 # -------------------------------
@@ -21,18 +20,12 @@ LOOKBACK    = 20
 MAX_RETRIES = 3
 RETRY_SLEEP = 5
 
-TV_SYMBOLS = {
-    "NiftyBees":   "NIFTYBEES",
-    "GoldBees":    "GOLDBEES",
-    "SilverBees":  "SILVERBEES",
+YF_SYMBOLS = {
+    "NiftyBees":  "NIFTYBEES.NS",
+    "GoldBees":   "GOLDBEES.NS",
+    "SilverBees": "SILVERBEES.NS",
 }
 
-# -------------------------------
-# INIT — anonymous mode, no login required
-# -------------------------------
-tv = TvDatafeed()
-
-# Make sure output folder exists
 os.makedirs(os.path.dirname(FILE_PATH), exist_ok=True)
 
 # -------------------------------
@@ -44,33 +37,29 @@ def latest_raw_date(raw_df):
     temp = temp.dropna(subset=["Date"])
     return None if temp.empty else temp["Date"].max().normalize()
 
-def fetch_tv_data(symbol):
+def fetch_yf_data(ticker):
     last_err = None
     for _ in range(MAX_RETRIES):
         try:
-            df = tv.get_hist(
-                symbol=symbol,
-                exchange="NSE",
-                interval=Interval.in_daily,
-                n_bars=5000
-            )
+            df = yf.download(ticker, period="20y", interval="1d", auto_adjust=True, progress=False)
             if df is None or df.empty:
-                raise ValueError(f"No TradingView data for {symbol}")
+                raise ValueError(f"No data for {ticker}")
             df = df.reset_index()
-            if "datetime" in df.columns:
-                df.rename(columns={"datetime": "Date"}, inplace=True)
-            elif "Date" not in df.columns:
-                raise ValueError(f"Date column not found for {symbol}")
+            # yfinance may return MultiIndex columns — flatten
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = [c[0] for c in df.columns]
+            df.rename(columns={"Date": "Date", "Open": "Open", "High": "High",
+                                "Low": "Low", "Close": "Close", "Volume": "Volume"}, inplace=True)
             df["Date"] = pd.to_datetime(df["Date"], errors="coerce").dt.normalize()
-            df = df[["Date", "open", "high", "low", "close", "volume"]].copy()
-            df.columns = ["Date", "Open", "High", "Low", "Close", "Volume"]
+            df = df[["Date", "Open", "High", "Low", "Close", "Volume"]].copy()
             for c in ["Open", "High", "Low", "Close"]:
                 df[c] = pd.to_numeric(df[c], errors="coerce").round(2)
+            df = df.dropna(subset=["Date", "Close"])
             return df
         except Exception as e:
             last_err = e
             time.sleep(RETRY_SLEEP)
-    raise ValueError(f"Failed to fetch {symbol} after {MAX_RETRIES} retries: {last_err}")
+    raise ValueError(f"Failed to fetch {ticker} after {MAX_RETRIES} retries: {last_err}")
 
 def fmt2(x):
     return round(float(x), 2) if pd.notna(x) else None
@@ -140,8 +129,8 @@ def apply_sheet_formatting(ws, date_cols):
             elif isinstance(cell.value, (int, float)):
                 cell.number_format = "0.00"
     for col in range(1, ws.max_column + 1):
-        letter   = get_column_letter(col)
-        max_len  = 0
+        letter = get_column_letter(col)
+        max_len = 0
         for r in range(1, min(ws.max_row, 500) + 1):
             v = ws.cell(r, col).value
             if v is not None:
@@ -155,12 +144,12 @@ def generate_html(raw_df, gb_sig, sb_sig):
     chart = raw_df[['Date','NB/GB','20D_H_NB_GB','20D_L_NB_GB','NB/SB','20D_H_NB_SB','20D_L_NB_SB']].dropna(subset=['NB/GB']).tail(70).copy()
     chart['Date'] = chart['Date'].dt.strftime('%d-%m-%y')
     lv = raw_df.dropna(subset=['20D_H_NB_GB','20D_L_NB_GB']).iloc[-1]
-    nb_gb   = round(float(lv['NB/GB']), 4)
-    nb_sb   = round(float(lv['NB/SB']), 4)   if pd.notna(lv['NB/SB'])   else 'N/A'
-    h_nbgb  = round(float(lv['20D_H_NB_GB']), 4)
-    l_nbgb  = round(float(lv['20D_L_NB_GB']), 4)
-    h_nbsb  = round(float(lv['20D_H_NB_SB']), 4) if pd.notna(lv['20D_H_NB_SB']) else 'N/A'
-    l_nbsb  = round(float(lv['20D_L_NB_SB']), 4) if pd.notna(lv['20D_L_NB_SB']) else 'N/A'
+    nb_gb  = round(float(lv['NB/GB']), 4)
+    nb_sb  = round(float(lv['NB/SB']), 4)   if pd.notna(lv['NB/SB'])   else 'N/A'
+    h_nbgb = round(float(lv['20D_H_NB_GB']), 4)
+    l_nbgb = round(float(lv['20D_L_NB_GB']), 4)
+    h_nbsb = round(float(lv['20D_H_NB_SB']), 4) if pd.notna(lv['20D_H_NB_SB']) else 'N/A'
+    l_nbsb = round(float(lv['20D_L_NB_SB']), 4) if pd.notna(lv['20D_L_NB_SB']) else 'N/A'
     latest_date = lv['Date'].strftime('%d-%m-%y')
     holding_gb  = gb_sig.iloc[-1]['Buy Signal'].replace('BUY ', '') if len(gb_sig) else 'N/A'
     holding_sb  = sb_sig.iloc[-1]['Buy Signal'].replace('BUY ', '') if len(sb_sig) else 'N/A'
@@ -171,7 +160,12 @@ def generate_html(raw_df, gb_sig, sb_sig):
         for _, r in df.tail(5).iloc[::-1].iterrows():
             color = sig_color(r['Buy Signal'])
             ret_color = '#16a34a' if r['Returns'] and '-' not in str(r['Returns']) else '#ef4444'
-            rows += f"<tr><td>{r['Date'].strftime('%d-%m-%y') if hasattr(r['Date'],'strftime') else r['Date']}</td><td><span class='badge' style='background:{color}'>{r['Buy Signal']}</span></td><td>{r['Entry_Price'] if pd.notna(r['Entry_Price']) else '&#8212;'}</td><td>{r['Exit_Price'] if pd.notna(r['Exit_Price']) else '&#8212;'}</td><td style='color:{ret_color};font-weight:700'>{r['Returns'] if pd.notna(r['Returns']) else '&#8212;'}</td><td>{r['20D_H_Ratio']}</td><td>{r['20D_L_Ratio']}</td></tr>"
+            rows += (f"<tr><td>{r['Date'].strftime('%d-%m-%y') if hasattr(r['Date'],'strftime') else r['Date']}</td>"
+                     f"<td><span class='badge' style='background:{color}'>{r['Buy Signal']}</span></td>"
+                     f"<td>{r['Entry_Price'] if pd.notna(r['Entry_Price']) else '&#8212;'}</td>"
+                     f"<td>{r['Exit_Price'] if pd.notna(r['Exit_Price']) else '&#8212;'}</td>"
+                     f"<td style='color:{ret_color};font-weight:700'>{r['Returns'] if pd.notna(r['Returns']) else '&#8212;'}</td>"
+                     f"<td>{r['20D_H_Ratio']}</td><td>{r['20D_L_Ratio']}</td></tr>")
         return rows
     dates  = chart['Date'].tolist()
     nbgb_v = [safe(x) for x in chart['NB/GB']]
@@ -322,52 +316,52 @@ print(f"Latest raw data: {last_date.strftime('%d-%m-%y') if last_date is not Non
 print(f"Needs update: {needs_update}")
 
 # -------------------------------
-# UPDATE RAWDATA IF NEEDED
+# FETCH + UPDATE RAWDATA
 # -------------------------------
-if needs_update:
-    try:
-        nb = fetch_tv_data(TV_SYMBOLS["NiftyBees"]).rename(columns={
-            "Open":"NB_open","High":"NB_high","Low":"NB_low","Close":"NB_close","Volume":"NB_volume"
-        })[["Date","NB_open","NB_high","NB_low","NB_close","NB_volume"]]
-        gb = fetch_tv_data(TV_SYMBOLS["GoldBees"]).rename(columns={
-            "Open":"GB_open","High":"GB_high","Low":"GB_low","Close":"GB_close","Volume":"GB_volume"
-        })[["Date","GB_open","GB_high","GB_low","GB_close","GB_volume"]]
-        sb = fetch_tv_data(TV_SYMBOLS["SilverBees"]).rename(columns={
-            "Open":"SB_open","High":"SB_high","Low":"SB_low","Close":"SB_close","Volume":"SB_volume"
-        })[["Date","SB_open","SB_high","SB_low","SB_close","SB_volume"]]
-        raw_updated = nb.merge(gb, on="Date", how="outer").merge(sb, on="Date", how="outer")
-        raw_updated = raw_updated.sort_values("Date").reset_index(drop=True)
-        raw_updated["NB/GB"] = (raw_updated["NB_close"] / raw_updated["GB_close"]).round(4)
-        raw_updated["NB/SB"] = (raw_updated["NB_close"] / raw_updated["SB_close"]).round(4)
-        if RAW_SHEET in wb.sheetnames:
-            del wb[RAW_SHEET]
-        ws_raw = wb.create_sheet(RAW_SHEET, 0)
-        for c_idx, h in enumerate(raw_updated.columns, 1):
-            ws_raw.cell(1, c_idx, h)
-        for r_idx, row in enumerate(raw_updated.itertuples(index=False), 2):
-            for c_idx, val in enumerate(row, 1):
-                cell = ws_raw.cell(r_idx, c_idx)
-                if c_idx == 1 and pd.notna(val):
-                    cell.value = pd.to_datetime(val).to_pydatetime()
-                    cell.number_format = "dd-mm-yy"
-                elif isinstance(val, (int, float)) and pd.notna(val):
-                    if c_idx in [2,3,4,5,7,8,9,10,12,13,14,15]:
-                        cell.value = round(float(val), 2)
-                        cell.number_format = "0.00"
-                    elif c_idx in [17,18]:
-                        cell.value = round(float(val), 4)
-                        cell.number_format = "0.0000"
-                    else:
-                        cell.value = val
+try:
+    nb = fetch_yf_data(YF_SYMBOLS["NiftyBees"]).rename(columns={
+        "Open":"NB_open","High":"NB_high","Low":"NB_low","Close":"NB_close","Volume":"NB_volume"
+    })[["Date","NB_open","NB_high","NB_low","NB_close","NB_volume"]]
+    gb = fetch_yf_data(YF_SYMBOLS["GoldBees"]).rename(columns={
+        "Open":"GB_open","High":"GB_high","Low":"GB_low","Close":"GB_close","Volume":"GB_volume"
+    })[["Date","GB_open","GB_high","GB_low","GB_close","GB_volume"]]
+    sb = fetch_yf_data(YF_SYMBOLS["SilverBees"]).rename(columns={
+        "Open":"SB_open","High":"SB_high","Low":"SB_low","Close":"SB_close","Volume":"SB_volume"
+    })[["Date","SB_open","SB_high","SB_low","SB_close","SB_volume"]]
+    raw_updated = nb.merge(gb, on="Date", how="outer").merge(sb, on="Date", how="outer")
+    raw_updated = raw_updated.sort_values("Date").reset_index(drop=True)
+    raw_updated["NB/GB"] = (raw_updated["NB_close"] / raw_updated["GB_close"]).round(4)
+    raw_updated["NB/SB"] = (raw_updated["NB_close"] / raw_updated["SB_close"]).round(4)
+    if RAW_SHEET in wb.sheetnames:
+        del wb[RAW_SHEET]
+    ws_raw = wb.create_sheet(RAW_SHEET, 0)
+    for c_idx, h in enumerate(raw_updated.columns, 1):
+        ws_raw.cell(1, c_idx, h)
+    for r_idx, row in enumerate(raw_updated.itertuples(index=False), 2):
+        for c_idx, val in enumerate(row, 1):
+            cell = ws_raw.cell(r_idx, c_idx)
+            if c_idx == 1 and pd.notna(val):
+                cell.value = pd.to_datetime(val).to_pydatetime()
+                cell.number_format = "dd-mm-yy"
+            elif isinstance(val, (int, float)) and pd.notna(val):
+                if c_idx in [2,3,4,5,7,8,9,10,12,13,14,15]:
+                    cell.value = round(float(val), 2)
+                    cell.number_format = "0.00"
+                elif c_idx in [17,18]:
+                    cell.value = round(float(val), 4)
+                    cell.number_format = "0.0000"
                 else:
                     cell.value = val
-        apply_sheet_formatting(ws_raw, date_cols={1})
-        print("Raw data updated successfully.")
-    except Exception as e:
-        print(f"Update failed, using existing raw data: {e}")
-        raw_updated = raw_df.copy()
-else:
+            else:
+                cell.value = val
+    apply_sheet_formatting(ws_raw, date_cols={1})
+    print("Raw data fetched and updated successfully.")
+except Exception as e:
+    print(f"Fetch failed: {e}")
+    if raw_df.empty:
+        raise RuntimeError("No existing data and fresh fetch failed — cannot proceed.") from e
     raw_updated = raw_df.copy()
+    print("Using existing raw data from workbook.")
 
 raw_updated["Date"] = pd.to_datetime(raw_updated["Date"], dayfirst=True, errors="coerce")
 raw_updated = raw_updated.sort_values("Date").reset_index(drop=True)
