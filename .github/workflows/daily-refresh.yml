@@ -30,10 +30,8 @@ jobs:
 
       - name: Run rotation script
         env:
-          TV_USERNAME: ${{ secrets.TV_USERNAME }}
-          TV_PASSWORD: ${{ secrets.TV_PASSWORD }}
-          FILE_PATH:   output/rotation_invest.xlsx
-          HTML_PATH:   output/index.html
+          FILE_PATH: output/rotation_invest.xlsx
+          HTML_PATH: output/index.html
         run: python rotation_invest.py
 
       - name: Upload Excel to Cloudflare R2

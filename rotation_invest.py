@@ -8,13 +8,10 @@ from openpyxl.styles import Alignment
 from openpyxl.utils import get_column_letter
 
 # -------------------------------
-# CONFIG — all from environment variables
+# CONFIG
 # -------------------------------
 FILE_PATH = os.getenv("FILE_PATH", "output/rotation_invest.xlsx")
 HTML_PATH = os.getenv("HTML_PATH", "output/index.html")
-
-USERNAME = os.getenv("TV_USERNAME")
-PASSWORD = os.getenv("TV_PASSWORD")
 
 RAW_SHEET       = "rawdata"
 GB_SIGNAL_SHEET = "GB_signal"
@@ -31,9 +28,9 @@ TV_SYMBOLS = {
 }
 
 # -------------------------------
-# INIT
+# INIT — anonymous mode, no login required
 # -------------------------------
-tv = TvDatafeed(username=USERNAME, password=PASSWORD)
+tv = TvDatafeed()
 
 # Make sure output folder exists
 os.makedirs(os.path.dirname(FILE_PATH), exist_ok=True)
@@ -176,15 +173,15 @@ def generate_html(raw_df, gb_sig, sb_sig):
             ret_color = '#16a34a' if r['Returns'] and '-' not in str(r['Returns']) else '#ef4444'
             rows += f"<tr><td>{r['Date'].strftime('%d-%m-%y') if hasattr(r['Date'],'strftime') else r['Date']}</td><td><span class='badge' style='background:{color}'>{r['Buy Signal']}</span></td><td>{r['Entry_Price'] if pd.notna(r['Entry_Price']) else '&#8212;'}</td><td>{r['Exit_Price'] if pd.notna(r['Exit_Price']) else '&#8212;'}</td><td style='color:{ret_color};font-weight:700'>{r['Returns'] if pd.notna(r['Returns']) else '&#8212;'}</td><td>{r['20D_H_Ratio']}</td><td>{r['20D_L_Ratio']}</td></tr>"
         return rows
-    dates     = chart['Date'].tolist()
-    nbgb_v    = [safe(x) for x in chart['NB/GB']]
-    h1_v      = [safe(x) for x in chart['20D_H_NB_GB']]
-    l1_v      = [safe(x) for x in chart['20D_L_NB_GB']]
-    nbsb_v    = [safe(x) for x in chart['NB/SB']]
-    h2_v      = [safe(x) for x in chart['20D_H_NB_SB']]
-    l2_v      = [safe(x) for x in chart['20D_L_NB_SB']]
-    gb_rows   = last5_html(gb_sig, 'GB_Close')
-    sb_rows   = last5_html(sb_sig, 'SB_Close')
+    dates  = chart['Date'].tolist()
+    nbgb_v = [safe(x) for x in chart['NB/GB']]
+    h1_v   = [safe(x) for x in chart['20D_H_NB_GB']]
+    l1_v   = [safe(x) for x in chart['20D_L_NB_GB']]
+    nbsb_v = [safe(x) for x in chart['NB/SB']]
+    h2_v   = [safe(x) for x in chart['20D_H_NB_SB']]
+    l2_v   = [safe(x) for x in chart['20D_L_NB_SB']]
+    gb_rows = last5_html(gb_sig, 'GB_Close')
+    sb_rows = last5_html(sb_sig, 'SB_Close')
     html = f"""<!DOCTYPE html>
 <html lang='en'>
 <head>
@@ -375,7 +372,6 @@ else:
 raw_updated["Date"] = pd.to_datetime(raw_updated["Date"], dayfirst=True, errors="coerce")
 raw_updated = raw_updated.sort_values("Date").reset_index(drop=True)
 
-# Compute rolling ratios for HTML chart
 raw_updated["NB/GB"] = raw_updated["NB_close"] / raw_updated["GB_close"]
 raw_updated["NB/SB"] = raw_updated["NB_close"] / raw_updated["SB_close"]
 raw_updated["20D_H_NB_GB"] = raw_updated["NB/GB"].rolling(20).max().shift(1)
@@ -383,9 +379,6 @@ raw_updated["20D_L_NB_GB"] = raw_updated["NB/GB"].rolling(20).min().shift(1)
 raw_updated["20D_H_NB_SB"] = raw_updated["NB/SB"].rolling(20).max().shift(1)
 raw_updated["20D_L_NB_SB"] = raw_updated["NB/SB"].rolling(20).min().shift(1)
 
-# -------------------------------
-# SIGNAL SHEETS
-# -------------------------------
 gb_signals = build_signals(raw_updated,"NB/GB","NiftyBees","GoldBees","NB_open","GB_open","NB_close","GB_close","GB_Close")
 sb_signals = build_signals(raw_updated,"NB/SB","NiftyBees","SilverBees","NB_open","SB_open","NB_close","SB_close","SB_Close")
 
@@ -423,17 +416,11 @@ for sheet_name, sig_df in [(GB_SIGNAL_SHEET, gb_signals),(SB_SIGNAL_SHEET, sb_si
 if RAW_SHEET in wb.sheetnames:
     wb._sheets = [wb[RAW_SHEET]] + [wb[s] for s in wb.sheetnames if s != RAW_SHEET]
 
-# -------------------------------
-# SAVE WORKBOOK
-# -------------------------------
 wb.save(FILE_PATH)
 print(f"Workbook saved: {FILE_PATH}")
 print(f"GB signals: {len(gb_signals)}")
 print(f"SB signals: {len(sb_signals)}")
 
-# -------------------------------
-# GENERATE index.html
-# -------------------------------
 html_content = generate_html(raw_updated, gb_signals, sb_signals)
 with open(HTML_PATH, 'w', encoding='utf-8') as f:
     f.write(html_content)
