@@ -36,7 +36,28 @@ jobs:
           HTML_PATH:   output/index.html
         run: python rotation_invest.py
 
-      - name: Commit and push updated files
+      - name: Upload Excel to Cloudflare R2
+        env:
+          AWS_ACCESS_KEY_ID:     ${{ secrets.R2_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_KEY }}
+          AWS_DEFAULT_REGION:    auto
+        run: |
+          aws s3 cp output/rotation_invest.xlsx s3://${{ secrets.R2_BUCKET }}/rotation_invest.xlsx \
+            --endpoint-url ${{ secrets.R2_ENDPOINT }} \
+            --no-progress
+
+      - name: Upload HTML dashboard to Cloudflare R2
+        env:
+          AWS_ACCESS_KEY_ID:     ${{ secrets.R2_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_KEY }}
+          AWS_DEFAULT_REGION:    auto
+        run: |
+          aws s3 cp output/index.html s3://${{ secrets.R2_BUCKET }}/index.html \
+            --endpoint-url ${{ secrets.R2_ENDPOINT }} \
+            --content-type "text/html" \
+            --no-progress
+
+      - name: Commit and push updated files to GitHub
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name  "GitHub Action"
