@@ -20,7 +20,6 @@ df = df.dropna(subset=['NiftyBees_Close', 'GoldBees_Close', 'SilverBees_Close'])
 last_row = df.iloc[-1]
 
 # Extract Current Close Prices and Date from Excel
-# (Adjust string keys if your Excel headers differ slightly)
 current_nb = float(last_row['NiftyBees_Close'])
 current_gb = float(last_row['GoldBees_Close'])
 current_sb = float(last_row['SilverBees_Close'])
@@ -33,7 +32,6 @@ else:
     formatted_date = str(raw_date)
 
 # 3. Generate Rolling 70-Day Data Arrays for Chart.js
-# We take the tail(70) to ensure the charts don't get cluttered over time
 df_70 = df.tail(70).copy()
 
 # Calculate Rolling Ratios and 20-Day High/Low Boundaries
@@ -311,10 +309,10 @@ function runGitHubWorkflow() {{
 
   if (!confirm("Confirm execution: Trigger screening engine execution pipeline on GitHub?")) return;
 
-  fetch(`https://api.github.com/repos/\${{USER}}/\${{REPOSITORY}}/actions/workflows/\${{WORKFLOW_FILE}}/dispatches`, {{
+  fetch(`https://api.github.com/repos/\\${{USER}}/\\${{REPOSITORY}}/actions/workflows/\\${{WORKFLOW_FILE}}/dispatches`, {{
     method: "POST",
     headers: {{
-      "Authorization": `Bearer \${{AUTH_TOKEN}}`,
+      "Authorization": `Bearer \\${{AUTH_TOKEN}}`,
       "Accept": "application/vnd.github+v3+json",
       "Content-Type": "application/json"
     }},
@@ -324,7 +322,7 @@ function runGitHubWorkflow() {{
     if (res.status === 204) {{
       alert("✅ Screening automation pipeline triggered successfully on GitHub Actions.");
     }} else {{
-      res.json().then(err => alert(`❌ API Rejection: \${{err.message || res.statusText}}`));
+      res.json().then(err => alert(`❌ API Rejection: \\${{err.message || res.statusText}}`));
     }}
   }})
   .catch(err => {{
@@ -334,4 +332,9 @@ function runGitHubWorkflow() {{
 }}
 </script>
 </body>
-</html>
+</html>"""
+
+with open(html_path, "w", encoding="utf-8") as f:
+    f.write(html_content)
+
+print(f"Success: Up-to-date Dashboard HTML generated completely inside {html_path}")
