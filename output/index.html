@@ -1,74 +1,4 @@
-import os
-import pandas as pd
-from datetime import datetime
-
-# 1. Define File Paths (Managed by your GitHub Actions workflow)
-excel_path = os.getenv("FILE_PATH", "output/rotation_invest.xlsx")
-html_path = os.getenv("HTML_PATH", "output/index.html")
-
-# Create output directory if it doesn't exist locally
-os.makedirs(os.path.dirname(html_path), exist_ok=True)
-
-# 2. Read the Excel File (Sourced from Cloudflare R2)
-if not os.path.exists(excel_path):
-    raise FileNotFoundError(f"Critical Error: Excel ledger not found at {excel_path}")
-
-df = pd.read_excel(excel_path)
-df = df.dropna(subset=['NiftyBees_Close', 'GoldBees_Close', 'SilverBees_Close'])
-
-# Grab the absolute last row for current metrics
-last_row = df.iloc[-1]
-
-# Extract Current Close Prices and Date from Excel
-current_nb = float(last_row['NiftyBees_Close'])
-current_gb = float(last_row['GoldBees_Close'])
-current_sb = float(last_row['SilverBees_Close'])
-
-# Format the date nicely for the dashboard headers
-raw_date = last_row['Date']
-if isinstance(raw_date, (datetime, pd.Timestamp)):
-    formatted_date = raw_date.strftime('%d-%m-%y')
-else:
-    formatted_date = str(raw_date)
-
-# 3. Generate Rolling 70-Day Data Arrays for Chart.js
-df_70 = df.tail(70).copy()
-
-# Calculate Rolling Ratios and 20-Day High/Low Boundaries
-df_70['NB_GB'] = (df_70['NiftyBees_Close'] / df_70['GoldBees_Close']).round(4)
-df_70['NB_SB'] = (df_70['NiftyBees_Close'] / df_70['SilverBees_Close']).round(4)
-
-df_70['H1'] = df_70['NB_GB'].rolling(window=20, min_periods=1).max().round(4)
-df_70['L1'] = df_70['NB_GB'].rolling(window=20, min_periods=1).min().round(4)
-df_70['H2'] = df_70['NB_SB'].rolling(window=20, min_periods=1).max().round(4)
-df_70['L2'] = df_70['NB_SB'].rolling(window=20, min_periods=1).min().round(4)
-
-# Format dates for the chart labels
-if pd.api.types.is_datetime64_any_dtype(df_70['Date']):
-    chart_labels = df_70['Date'].dt.strftime('%d-%m-%y').tolist()
-else:
-    chart_labels = df_70['Date'].astype(str).tolist()
-
-# Extract arrays as clean lists for Javascript injection
-list_nbgb = df_70['NB_GB'].tolist()
-list_h1 = df_70['H1'].tolist()
-list_l1 = df_70['L1'].tolist()
-
-list_nbsb = df_70['NB_SB'].tolist()
-list_h2 = df_70['H2'].tolist()
-list_l2 = df_70['L2'].tolist()
-
-# Get the absolute newest values for the top KPI block display
-latest_nbgb_ratio = list_nbgb[-1]
-latest_h1 = list_h1[-1]
-latest_l1 = list_l1[-1]
-
-latest_nbsb_ratio = list_nbsb[-1]
-latest_h2 = list_h2[-1]
-latest_l2 = list_l2[-1]
-
-# 4. Generate the complete HTML Structure with Dynamic Injections
-html_content = f"""<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang='en'>
 <head>
 <meta charset='UTF-8'>
@@ -76,74 +6,74 @@ html_content = f"""<!DOCTYPE html>
 <title>Rotation Strategy Dashboard</title>
 <script src='https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'></script>
 <style>
-:root{{
+:root{
  --bg:#edf5ff;--panel:rgba(255,255,255,.86);--text:#0f1f3a;--muted:#5f708a;
  --tw:#1DA1F2;--tech:#0A2885;--tech2:#01147C;--good:#16a34a;--bad:#ef4444;
  --shadow:0 14px 40px rgba(8,20,60,.12);
-}}
-*{{box-sizing:border-box;}}
-body{{margin:0;font-family:Segoe UI,Inter,Arial,sans-serif;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:Segoe UI,Inter,Arial,sans-serif;
  background:radial-gradient(circle at 16% 18%,rgba(29,161,242,.18),transparent 26%),
  radial-gradient(circle at 82% 20%,rgba(10,40,133,.18),transparent 22%),
- linear-gradient(135deg,#f7fbff 0%,#e8f1fb 100%);color:var(--text);}}
-.container{{max-width:1500px;margin:0 auto;padding:22px;}}
-.hero{{position:relative;overflow:hidden;border-radius:28px;padding:28px;color:#fff;box-shadow:var(--shadow);
+ linear-gradient(135deg,#f7fbff 0%,#e8f1fb 100%);color:var(--text);}
+.container{max-width:1500px;margin:0 auto;padding:22px;}
+.hero{position:relative;overflow:hidden;border-radius:28px;padding:28px;color:#fff;box-shadow:var(--shadow);
  background:linear-gradient(135deg,var(--tech2) 0%,var(--tech) 42%,var(--tw) 100%);
- display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:20px;}}
-.hero-content{{flex:1;min-width:300px;}}
-.hero:before,.hero:after{{content:'';position:absolute;border-radius:50%;background:rgba(255,255,255,.12);z-index:1;}}
-.hero:before{{width:240px;height:240px;right:-70px;bottom:-70px;}}
-.hero:after{{width:140px;height:140px;right:140px;top:34px;background:rgba(255,255,255,.08);}}
-.hero h1{{font-size:2.1rem;margin:0 0 8px;position:relative;z-index:2;}}
-.hero p{{margin:0;color:rgba(255,255,255,.93);position:relative;z-index:2;font-weight:500;}}
+ display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:20px;}
+.hero-content{flex:1;min-width:300px;}
+.hero:before,.hero:after{content:'';position:absolute;border-radius:50%;background:rgba(255,255,255,.12);z-index:1;}
+.hero:before{width:240px;height:240px;right:-70px;bottom:-70px;}
+.hero:after{width:140px;height:140px;right:140px;top:34px;background:rgba(255,255,255,.08);}
+.hero h1{font-size:2.1rem;margin:0 0 8px;position:relative;z-index:2;}
+.hero p{margin:0;color:rgba(255,255,255,.93);position:relative;z-index:2;font-weight:500;}
 
-.btn-runner{{position:relative;z-index:2;background:#fff;color:var(--tech2);border:none;padding:12px 24px;border-radius:14px;font-weight:800;font-size:0.95rem;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,0.15);transition:all 0.2s ease;display:flex;align-items:center;gap:8px;}}
-.btn-runner:hover{{background:#edf5ff;transform:translateY(-2px);box-shadow:0 8px 25px rgba(0,0,0,0.2);}}
-.btn-runner:active{{transform:translateY(0);}}
+.btn-runner{position:relative;z-index:2;background:#fff;color:var(--tech2);border:none;padding:12px 24px;border-radius:14px;font-weight:800;font-size:0.95rem;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,0.15);transition:all 0.2s ease;display:flex;align-items:center;gap:8px;}
+.btn-runner:hover{background:#edf5ff;transform:translateY(-2px);box-shadow:0 8px 25px rgba(0,0,0,0.2);}
+.btn-runner:active{transform:translateY(0);}
 
-.grid{{display:grid;gap:16px;}}
-.kpis{{grid-template-columns:repeat(6,1fr);margin-top:16px;}}
+.grid{display:grid;gap:16px;}
+.kpis{grid-template-columns:repeat(6,1fr);margin-top:16px;}
 
-.prices-bar{{display:flex;gap:16px;justify-content:center;margin:16px 0;flex-wrap:wrap;}}
-.price-tag{{background:var(--panel);border:1px solid rgba(255,255,255,.6);border-radius:12px;padding:12px 20px;font-size:.88rem;box-shadow:var(--shadow);font-weight:600;color:var(--muted);}}
-.price-tag strong{{color:var(--text);font-size:1.05rem;margin-left:4px;}}
-.price-tag span{{font-size:0.75rem;background:rgba(15,31,58,0.06);padding:3px 6px;border-radius:6px;margin-left:6px;font-weight:700;color:var(--tech2);}}
+.prices-bar{display:flex;gap:16px;justify-content:center;margin:16px 0;flex-wrap:wrap;}
+.price-tag{background:var(--panel);border:1px solid rgba(255,255,255,.6);border-radius:12px;padding:12px 20px;font-size:.88rem;box-shadow:var(--shadow);font-weight:600;color:var(--muted);}
+.price-tag strong{color:var(--text);font-size:1.05rem;margin-left:4px;}
+.price-tag span{font-size:0.75rem;background:rgba(15,31,58,0.06);padding:3px 6px;border-radius:6px;margin-left:6px;font-weight:700;color:var(--tech2);}
 
-@media(max-width:1100px){{.kpis{{grid-template-columns:repeat(2,1fr);}}.charts{{grid-template-columns:1fr;}}.live-grid{{grid-template-columns:1fr !important;}}}}
-.card,.chart-card,.table-wrap{{background:var(--panel);border:1px solid rgba(255,255,255,.6);border-radius:20px;box-shadow:var(--shadow);backdrop-filter:blur(10px);}}
-.card{{padding:18px;}}
-.label{{color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;font-weight:800;margin-bottom:10px;}}
-.value{{font-size:1.7rem;font-weight:900;line-height:1;}}
-.value.tw{{color:var(--tw);}}.value.tech{{color:var(--tech);}}.value.bad{{color:var(--bad);}}
-.small{{color:var(--muted);font-size:.85rem;margin-top:8px;}}
-.section-title{{margin:24px 0 12px;font-size:1.06rem;font-weight:900;}}
-.charts{{grid-template-columns:1fr 1fr;}}
-.chart-card{{padding:16px;}}
-.chart-head{{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}}
-.badge-soft{{display:inline-block;padding:6px 10px;border-radius:999px;background:linear-gradient(90deg,rgba(29,161,242,.12),rgba(10,40,133,.12));color:var(--tech2);font-size:.78rem;font-weight:900;border:1px solid #d8e7f7;}}
-canvas{{max-height:240px;}}
-.table-wrap{{overflow:hidden;margin-top:16px;}}
-.table-title{{padding:16px 18px;font-weight:900;background:linear-gradient(90deg,rgba(29,161,242,.11),rgba(10,40,133,.11));border-bottom:1px solid #e6eef8;}}
-table{{width:100%;border-collapse:collapse;}}
-th,td{{padding:12px 10px;text-align:center;border-bottom:1px solid #eef3f8;font-size:.86rem;}}
-th{{position:sticky;top:0;background:#f8fbff;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-size:.72rem;}}
-tr:hover td{{background:#fafcff;}}
-.badge{{display:inline-block;padding:6px 10px;border-radius:999px;color:#fff;font-size:.78rem;font-weight:800;}}
-.holding-bar{{display:flex;gap:16px;justify-content:center;margin:16px 0;flex-wrap:wrap;}}
-.holding-tag{{background:var(--panel);border:1px solid rgba(255,255,255,.6);border-radius:12px;padding:12px 24px;font-size:.9rem;box-shadow:var(--shadow);}}
-.holding-tag span{{font-weight:800;font-size:1.05rem;}}
+@media(max-width:1100px){.kpis{grid-template-columns:repeat(2,1fr);}.charts{grid-template-columns:1fr;}.live-grid{grid-template-columns:1fr !important;}}
+.card,.chart-card,.table-wrap{background:var(--panel);border:1px solid rgba(255,255,255,.6);border-radius:20px;box-shadow:var(--shadow);backdrop-filter:blur(10px);}
+.card{padding:18px;}
+.label{color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;font-weight:800;margin-bottom:10px;}
+.value{font-size:1.7rem;font-weight:900;line-height:1;}
+.value.tw{color:var(--tw);}.value.tech{color:var(--tech);}.value.bad{color:var(--bad);}
+.small{color:var(--muted);font-size:.85rem;margin-top:8px;}
+.section-title{margin:24px 0 12px;font-size:1.06rem;font-weight:900;}
+.charts{grid-template-columns:1fr 1fr;}
+.chart-card{padding:16px;}
+.chart-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.badge-soft{display:inline-block;padding:6px 10px;border-radius:999px;background:linear-gradient(90deg,rgba(29,161,242,.12),rgba(10,40,133,.12));color:var(--tech2);font-size:.78rem;font-weight:900;border:1px solid #d8e7f7;}
+canvas{max-height:240px;}
+.table-wrap{overflow:hidden;margin-top:16px;}
+.table-title{padding:16px 18px;font-weight:900;background:linear-gradient(90deg,rgba(29,161,242,.11),rgba(10,40,133,.11));border-bottom:1px solid #e6eef8;}
+table{width:100%;border-collapse:collapse;}
+th,td{padding:12px 10px;text-align:center;border-bottom:1px solid #eef3f8;font-size:.86rem;}
+th{position:sticky;top:0;background:#f8fbff;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-size:.72rem;}
+tr:hover td{background:#fafcff;}
+.badge{display:inline-block;padding:6px 10px;border-radius:999px;color:#fff;font-size:.78rem;font-weight:800;}
+.holding-bar{display:flex;gap:16px;justify-content:center;margin:16px 0;flex-wrap:wrap;}
+.holding-tag{background:var(--panel);border:1px solid rgba(255,255,255,.6);border-radius:12px;padding:12px 24px;font-size:.9rem;box-shadow:var(--shadow);}
+.holding-tag span{font-weight:800;font-size:1.05rem;}
 
-.live-calc-card{{background:var(--panel);border:1px solid rgba(255,255,255,.6);border-radius:24px;padding:24px;margin-top:16px;box-shadow:var(--shadow);}}
-.live-grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:20px;}}
-.input-box{{display:flex;flex-direction:column;gap:8px;}}
-.input-box label{{font-size:0.8rem;font-weight:800;color:var(--tech);text-transform:uppercase;letter-spacing:0.05em;}}
-.input-box input{{padding:14px 18px;border-radius:14px;border:1px solid #d8e7f7;font-size:1.15rem;font-weight:700;color:var(--text);background:#fff;outline:none;transition:all 0.2s;}}
-.input-box input:focus{{border-color:var(--tw);box-shadow:0 0 0 4px rgba(29,161,242,0.15);}}
-.live-results{{display:flex;gap:40px;padding-top:18px;border-top:1px dashed #d8e7f7;flex-wrap:wrap;}}
-.result-tag{{font-size:1.05rem;font-weight:600;color:var(--muted);}}
-.result-tag span{{font-weight:900;color:var(--tech2);font-size:1.2rem;margin-left:6px;}}
+.live-calc-card{background:var(--panel);border:1px solid rgba(255,255,255,.6);border-radius:24px;padding:24px;margin-top:16px;box-shadow:var(--shadow);}
+.live-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:20px;}
+.input-box{display:flex;flex-direction:column;gap:8px;}
+.input-box label{font-size:0.8rem;font-weight:800;color:var(--tech);text-transform:uppercase;letter-spacing:0.05em;}
+.input-box input{padding:14px 18px;border-radius:14px;border:1px solid #d8e7f7;font-size:1.15rem;font-weight:700;color:var(--text);background:#fff;outline:none;transition:all 0.2s;}
+.input-box input:focus{border-color:var(--tw);box-shadow:0 0 0 4px rgba(29,161,242,0.15);}
+.live-results{display:flex;gap:40px;padding-top:18px;border-top:1px dashed #d8e7f7;flex-wrap:wrap;}
+.result-tag{font-size:1.05rem;font-weight:600;color:var(--muted);}
+.result-tag span{font-weight:900;color:var(--tech2);font-size:1.2rem;margin-left:6px;}
 
-.footer-note{{margin-top:20px;color:var(--muted);font-size:.84rem;text-align:center;}}
+.footer-note{margin-top:20px;color:var(--muted);font-size:.84rem;text-align:center;}
 </style>
 </head>
 <body>
@@ -151,7 +81,7 @@ tr:hover td{{background:#fafcff;}}
   <div class='hero'>
     <div class='hero-content'>
       <h1>&#x1F504; Rotation Strategy Dashboard</h1>
-      <p>NiftyBees / GoldBees / SilverBees &nbsp;&#x7C;&nbsp; As of <span class='latest-date-header'>{formatted_date}</span></p>
+      <p>NiftyBees / GoldBees / SilverBees &nbsp;&#x7C;&nbsp; As of <span class='latest-date-header'>—</span></p>
     </div>
     <button class='btn-runner' onclick='runGitHubWorkflow()'>🔄 Trigger Screening Workflow</button>
   </div>
@@ -162,18 +92,18 @@ tr:hover td{{background:#fafcff;}}
   </div>
 
   <div class='prices-bar'>
-    <div class='price-tag'>NiftyBees Close: <strong id='close-nb'>{current_nb:.2f}</strong><span class='latest-date'>{formatted_date}</span></div>
-    <div class='price-tag'>GoldBees Close: <strong id='close-gb'>{current_gb:.2f}</strong><span class='latest-date'>{formatted_date}</span></div>
-    <div class='price-tag'>SilverBees Close: <strong id='close-sb'>{current_sb:.2f}</strong><span class='latest-date'>{formatted_date}</span></div>
+    <div class='price-tag'>NiftyBees Close: <strong id='close-nb'>—</strong><span class='latest-date'>—</span></div>
+    <div class='price-tag'>GoldBees Close: <strong id='close-gb'>—</strong><span class='latest-date'>—</span></div>
+    <div class='price-tag'>SilverBees Close: <strong id='close-sb'>—</strong><span class='latest-date'>—</span></div>
   </div>
 
   <div class='grid kpis'>
-    <div class='card'><div class='label'>NB / GB</div><div class='value tw' id='kpi-nbgb'>{latest_nbgb_ratio:.4f}</div><div class='small'>Current ratio</div></div>
-    <div class='card'><div class='label'>20D High NB/GB</div><div class='value tech'>{latest_h1:.4f}</div><div class='small'>Breakout level</div></div>
-    <div class='card'><div class='label'>20D Low NB/GB</div><div class='value bad'>{latest_l1:.4f}</div><div class='small'>Breakdown level</div></div>
-    <div class='card'><div class='label'>NB / SB</div><div class='value tw' id='kpi-nbsb'>{latest_nbsb_ratio:.4f}</div><div class='small'>Current ratio</div></div>
-    <div class='card'><div class='label'>20D High NB/SB</div><div class='value tech'>{latest_h2:.4f}</div><div class='small'>Breakout level</div></div>
-    <div class='card'><div class='label'>20D Low NB/SB</div><div class='value bad'>{latest_l2:.4f}</div><div class='small'>Breakdown level</div></div>
+    <div class='card'><div class='label'>NB / GB</div><div class='value tw' id='kpi-nbgb'>2.0805</div><div class='small'>Current ratio</div></div>
+    <div class='card'><div class='label'>20D High NB/GB</div><div class='value tech'>2.2233</div><div class='small'>Breakout level</div></div>
+    <div class='card'><div class='label'>20D Low NB/GB</div><div class='value bad'>2.0149</div><div class='small'>Breakdown level</div></div>
+    <div class='card'><div class='label'>NB / SB</div><div class='value tw' id='kpi-nbsb'>1.076</div><div class='small'>Current ratio</div></div>
+    <div class='card'><div class='label'>20D High NB/SB</div><div class='value tech'>1.1759</div><div class='small'>Breakout level</div></div>
+    <div class='card'><div class='label'>20D Low NB/SB</div><div class='value bad'>0.9852</div><div class='small'>Breakdown level</div></div>
   </div>
 
   <div class='section-title'>Visual Summary</div>
@@ -220,121 +150,135 @@ tr:hover td{{background:#fafcff;}}
     <div class='live-grid'>
       <div class='input-box'>
         <label>NiftyBees Live Price</label>
-        <input type='number' id='nb-input' value='{current_nb}' step='0.05' oninput='runLiveCalculation()'>
+        <input type='number' id='nb-input' value='259.0' step='0.05' oninput='runLiveCalculation()'>
       </div>
       <div class='input-box'>
         <label>GoldBees Live Price</label>
-        <input type='number' id='gb-input' value='{current_gb}' step='0.05' oninput='runLiveCalculation()'>
+        <input type='number' id='gb-input' value='124.3' step='0.05' oninput='runLiveCalculation()'>
       </div>
       <div class='input-box'>
         <label>SilverBees Live Price</label>
-        <input type='number' id='sb-input' value='{current_sb}' step='0.05' oninput='runLiveCalculation()'>
+        <input type='number' id='sb-input' value='243.4' step='0.05' oninput='runLiveCalculation()'>
       </div>
     </div>
     <div class='live-results'>
-      <div class='result-tag'>Live NB / GB Ratio: <span id='live-nbgb-label'>{latest_nbgb_ratio:.4f}</span></div>
-      <div class='result-tag'>Live NB / SB Ratio: <span id='live-nbsb-label'>{latest_nbsb_ratio:.4f}</span></div>
+      <div class='result-tag'>Live NB / GB Ratio: <span id='live-nbgb-label'>2.0837</span></div>
+      <div class='result-tag'>Live NB / SB Ratio: <span id='live-nbsb-label'>1.0641</span></div>
     </div>
   </div>
 
-  <div class='footer-note'>Auto-refreshed daily at 4 PM IST via GitHub Actions &#x2192; Cloudflare R2 Bucket Storage</div>
+  <div class='footer-note'>Auto-refreshed daily at 4 PM IST via GitHub Actions &#x2192; Cloudflare Pages</div>
 </div>
 
 <script>
-const labels = {chart_labels};
-const nbgb = {list_nbgb};
-const h1 = {list_h1};
-const l1 = {list_l1};
-const nbsb = {list_nbsb};
-const h2 = {list_h2};
-const l2 = {list_l2};
+const labels=["19-02-26", "20-02-26", "23-02-26", "24-02-26", "25-02-26", "26-02-26", "27-02-26", "02-03-26", "04-03-26", "05-03-26", "06-03-26", "09-03-26", "10-03-26", "11-03-26", "12-03-26", "13-03-26", "16-03-26", "17-03-26", "18-03-26", "19-03-26", "20-03-26", "23-03-26", "24-03-26", "25-03-26", "27-03-26", "30-03-26", "01-04-26", "02-04-26", "06-04-26", "07-04-26", "08-04-26", "09-04-26", "10-04-26", "13-04-26", "15-04-26", "16-04-26", "17-04-26", "20-04-26", "21-04-26", "22-04-26", "23-04-26", "24-04-26", "27-04-26", "28-04-26", "29-04-26", "30-04-26", "01-05-26", "04-05-26", "05-05-26", "06-05-26", "07-05-26", "08-05-26", "11-05-26", "12-05-26", "13-05-26", "14-05-26", "15-05-26", "18-05-26", "19-05-26", "20-05-26", "21-05-26", "22-05-26", "25-05-26", "26-05-26", "27-05-26", "28-05-26", "29-05-26", "01-06-26", "02-06-26", "03-06-26"];
+const nbgb=[2.2691, 2.2678, 2.2342, 2.1936, 2.1917, 2.2117, 2.1679, 2.0382, 2.0699, 2.12, 2.1193, 2.074, 2.0798, 2.0387, 2.0233, 2.0157, 2.0844, 2.0836, 2.1064, 2.1606, 2.1648, 2.3045, 2.2498, 2.2136, 2.2028, 2.0913, 2.0868, 2.1364, 2.1191, 2.1471, 2.1841, 2.1872, 2.2022, 2.1778, 2.1891, 2.181, 2.2105, 2.2017, 2.2171, 2.2053, 2.2063, 2.1873, 2.1933, 2.2129, 2.2465, 2.2038, 2.2038, 2.2317, 2.229, 2.2233, 2.2107, 2.2037, 2.1918, 2.127, 2.0149, 2.0344, 2.0655, 2.0631, 2.0485, 2.0588, 2.0515, 2.0621, 2.0841, 2.0901, 2.0997, 2.0997, 2.0815, 2.0827, 2.0675, 2.0805];
+const h1=[2.3927, 2.3927, 2.3927, 2.3927, 2.3927, 2.3927, 2.3927, 2.3927, 2.3444, 2.3444, 2.3444, 2.3444, 2.3444, 2.3444, 2.3444, 2.3444, 2.3444, 2.3444, 2.3444, 2.3444, 2.2691, 2.2678, 2.3045, 2.3045, 2.3045, 2.3045, 2.3045, 2.3045, 2.3045, 2.3045, 2.3045, 2.3045, 2.3045, 2.3045, 2.3045, 2.3045, 2.3045, 2.3045, 2.3045, 2.3045, 2.3045, 2.3045, 2.2498, 2.2171, 2.2171, 2.2465, 2.2465, 2.2465, 2.2465, 2.2465, 2.2465, 2.2465, 2.2465, 2.2465, 2.2465, 2.2465, 2.2465, 2.2465, 2.2465, 2.2465, 2.2465, 2.2465, 2.2465, 2.2465, 2.2465, 2.2317, 2.2317, 2.2317, 2.229, 2.2233];
+const l1=[1.9612, 1.9612, 1.9612, 1.9612, 1.9612, 1.9612, 2.1868, 2.1679, 2.0382, 2.0382, 2.0382, 2.0382, 2.0382, 2.0382, 2.0382, 2.0233, 2.0157, 2.0157, 2.0157, 2.0157, 2.0157, 2.0157, 2.0157, 2.0157, 2.0157, 2.0157, 2.0157, 2.0157, 2.0157, 2.0157, 2.0157, 2.0157, 2.0157, 2.0157, 2.0157, 2.0157, 2.0836, 2.0836, 2.0868, 2.0868, 2.0868, 2.0868, 2.0868, 2.0868, 2.0868, 2.0868, 2.0868, 2.1191, 2.1191, 2.1471, 2.1778, 2.1778, 2.1778, 2.1778, 2.127, 2.0149, 2.0149, 2.0149, 2.0149, 2.0149, 2.0149, 2.0149, 2.0149, 2.0149, 2.0149, 2.0149, 2.0149, 2.0149, 2.0149, 2.0149];
+const nbsb=[1.2366, 1.2223, 1.161, 1.1483, 1.1397, 1.1728, 1.1285, 1.0265, 1.085, 1.1308, 1.1236, 1.1029, 1.0726, 1.075, 1.057, 1.0744, 1.1358, 1.1091, 1.1362, 1.197, 1.1918, 1.3185, 1.2238, 1.1926, 1.2183, 1.1729, 1.1452, 1.1929, 1.1703, 1.1883, 1.1782, 1.204, 1.2005, 1.198, 1.1646, 1.1512, 1.1584, 1.1599, 1.1694, 1.1678, 1.192, 1.1896, 1.1812, 1.208, 1.2182, 1.1956, 1.1956, 1.1856, 1.1897, 1.1759, 1.1492, 1.1406, 1.1194, 1.0517, 0.9852, 0.9895, 1.0698, 1.057, 1.0567, 1.0609, 1.0645, 1.0656, 1.0623, 1.0778, 1.0843, 1.0843, 1.0738, 1.064, 1.0575, 1.076];
+const h2=[1.3249, 1.3249, 1.3249, 1.3249, 1.3249, 1.3249, 1.3249, 1.3249, 1.3249, 1.3249, 1.3249, 1.3249, 1.3249, 1.3249, 1.3249, 1.3249, 1.3249, 1.3249, 1.3249, 1.3057, 1.2366, 1.2223, 1.3185, 1.3185, 1.3185, 1.3185, 1.3185, 1.3185, 1.3185, 1.3185, 1.3185, 1.3185, 1.3185, 1.3185, 1.3185, 1.3185, 1.3185, 1.3185, 1.3185, 1.3185, 1.3185, 1.3185, 1.2238, 1.2183, 1.2183, 1.2182, 1.2182, 1.2182, 1.2182, 1.2182, 1.2182, 1.2182, 1.2182, 1.2182, 1.2182, 1.2182, 1.2182, 1.2182, 1.2182, 1.2182, 1.2182, 1.2182, 1.2182, 1.2182, 1.2182, 1.1956, 1.1956, 1.1897, 1.1897, 1.1759];
+const l2=[0.8166, 0.8166, 0.8166, 0.8166, 0.8166, 0.8166, 1.0009, 1.0982, 1.0265, 1.0265, 1.0265, 1.0265, 1.0265, 1.0265, 1.0265, 1.0265, 1.0265, 1.0265, 1.0265, 1.0265, 1.0265, 1.0265, 1.0265, 1.0265, 1.0265, 1.0265, 1.0265, 1.0265, 1.057, 1.057, 1.057, 1.057, 1.057, 1.057, 1.057, 1.0744, 1.1091, 1.1091, 1.1362, 1.1452, 1.1452, 1.1452, 1.1452, 1.1452, 1.1452, 1.1452, 1.1452, 1.1512, 1.1512, 1.1512, 1.1512, 1.1492, 1.1406, 1.1194, 1.0517, 0.9852, 0.9852, 0.9852, 0.9852, 0.9852, 0.9852, 0.9852, 0.9852, 0.9852, 0.9852, 0.9852, 0.9852, 0.9852, 0.9852, 0.9852];
 
+// 1. Dynamic Extraction of the Final Row Metrics
+const latestIndex = labels.length - 1;
+const latestDateStr = labels[latestIndex] || '—';
+
+const finalNBGBRatio = nbgb[latestIndex] || 1;
+const finalNBSBRatio = nbsb[latestIndex] || 1;
+
+// Extract NiftyBees value from baseline structural baseline input element
+const latestNBValue = parseFloat(document.getElementById('nb-input').value) || 259.0;
+
+// 2. Map Dynamic Core Closes and Synchronize tracking timestamps
+document.querySelector('.latest-date-header').innerText = latestDateStr;
+document.querySelectorAll('.latest-date').forEach(el => el.innerText = latestDateStr);
+
+document.getElementById('close-nb').innerText = latestNBValue.toFixed(2);
+document.getElementById('close-gb').innerText = (latestNBValue / finalNBGBRatio).toFixed(2);
+document.getElementById('close-sb').innerText = (latestNBValue / finalNBSBRatio).toFixed(2);
+
+// 3. Render Historical Table Entries
 const tbody = document.getElementById('daily-data-rows');
-for (let i = labels.length - 5; i < labels.length; i++) {{
-  if(labels[i]) {{
+for (let i = labels.length - 5; i < labels.length; i++) {
+  if(labels[i]) {
     const row = `<tr>
-      <td style="font-weight:700;">\${{labels[i]}}</td>
-      <td style="color:var(--tw); font-weight:700;">\${{nbgb[i]}}</td>
-      <td>\${{h1[i] || '—'}}</td>
-      <td>\${{l1[i] || '—'}}</td>
-      <td style="color:var(--tech); font-weight:700;">\${{nbsb[i]}}</td>
-      <td>\${{h2[i] || '—'}}</td>
-      <td>\${{l2[i] || '—'}}</td>
+      <td style="font-weight:700;">${labels[i]}</td>
+      <td style="color:var(--tw); font-weight:700;">${nbgb[i]}</td>
+      <td>${h1[i] || '—'}</td>
+      <td>${l1[i] || '—'}</td>
+      <td style="color:var(--tech); font-weight:700;">${nbsb[i]}</td>
+      <td>${h2[i] || '—'}</td>
+      <td>${l2[i] || '—'}</td>
     </tr>`;
     tbody.insertAdjacentHTML('beforeend', row);
-  }}
-}}
+  }
+}
 
-function runLiveCalculation() {{
+function runLiveCalculation() {
   const nb = parseFloat(document.getElementById('nb-input').value) || 0;
   const gb = parseFloat(document.getElementById('gb-input').value) || 0;
   const sb = parseFloat(document.getElementById('sb-input').value) || 0;
 
-  if (gb > 0) {{
+  if (gb > 0) {
     const calculatedNBGB = (nb / gb).toFixed(4);
     document.getElementById('live-nbgb-label').innerText = calculatedNBGB;
     document.getElementById('kpi-nbgb').innerText = calculatedNBGB;
-  }}
-  if (sb > 0) {{
+  }
+  if (sb > 0) {
     const calculatedNBSB = (nb / sb).toFixed(4);
     document.getElementById('live-nbsb-label').innerText = calculatedNBSB;
     document.getElementById('kpi-nbsb').innerText = calculatedNBSB;
-  }}
-}}
+  }
+}
 
-function makeChart(id,main,hi,lo,color){{
-  new Chart(document.getElementById(id),{{type:'line',
-    data:{{labels,datasets:[
-      {{label:'Current Ratio',data:main,borderColor:color,borderWidth:3,pointRadius:0,tension:.28,fill:false}},
-      {{label:'20D High',data:hi,borderColor:'#01147C',borderWidth:2,pointRadius:0,borderDash:[6,4]}},
-      {{label:'20D Low',data:lo,borderColor:'#ef4444',borderWidth:2,pointRadius:0,borderDash:[6,4]}}
-    ]}},
-    options:{{responsive:true,plugins:{{legend:{{labels:{{color:'#5f708a'}}}}}},
-      scales:{{x:{{ticks:{{color:'#6b7b92'}},grid:{{color:'#e6eef8'}}}},y:{{ticks:{{color:'#6b7b92'}},grid:{{color:'#e6eef8'}}}}}}}}
+function makeChart(id,main,hi,lo,color){
+  new Chart(document.getElementById(id),{type:'line',
+    data:{labels,datasets:[
+      {label:'Current Ratio',data:main,borderColor:color,borderWidth:3,pointRadius:0,tension:.28,fill:false},
+      {label:'20D High',data:hi,borderColor:'#01147C',borderWidth:2,pointRadius:0,borderDash:[6,4]},
+      {label:'20D Low',data:lo,borderColor:'#ef4444',borderWidth:2,pointRadius:0,borderDash:[6,4]}
+    ]},
+    options:{responsive:true,plugins:{legend:{labels:{color:'#5f708a'}}},
+      scales:{x:{ticks:{color:'#6b7b92'},grid:{color:'#e6eef8'}},y:{ticks:{color:'#6b7b92'},grid:{color:'#e6eef8'}}}}
   );
-}}
+}
 makeChart('c1',nbgb,h1,l1,'#1DA1F2');
 makeChart('c2',nbsb,h2,l2,'#0A2885');
 
-function runGitHubWorkflow() {{
+function runGitHubWorkflow() {
   const USER = "YOUR_GITHUB_USERNAME";         
   const REPOSITORY = "YOUR_REPOSITORY_NAME";   
   const WORKFLOW_FILE = "YOUR_WORKFLOW.yml";   
   const AUTH_TOKEN = "YOUR_PERSONAL_ACCESS_TOKEN"; 
 
-  if (USER === "YOUR_GITHUB_USERNAME") {{
-    alert("Configuration Needed:\\nOpen this HTML file in a text editor and update the 'runGitHubWorkflow' variables inside the script tag with your actual GitHub repository credentials.");
+  if (USER === "YOUR_GITHUB_USERNAME") {
+    alert("Configuration Needed:\nOpen this HTML file in a text editor and update the 'runGitHubWorkflow' variables inside the script tag with your actual GitHub repository credentials.");
     return;
-  }}
+  }
 
   if (!confirm("Confirm execution: Trigger screening engine execution pipeline on GitHub?")) return;
 
-  fetch(`https://api.github.com/repos/\\${{USER}}/\\${{REPOSITORY}}/actions/workflows/\\${{WORKFLOW_FILE}}/dispatches`, {{
+  fetch(`https://api.github.com/repos/${USER}/${REPOSITORY}/actions/workflows/${WORKFLOW_FILE}/dispatches`, {
     method: "POST",
-    headers: {{
-      "Authorization": `Bearer \\${{AUTH_TOKEN}}`,
+    headers: {
+      "Authorization": `Bearer ${AUTH_TOKEN}`,
       "Accept": "application/vnd.github+v3+json",
       "Content-Type": "application/json"
-    }},
-    body: JSON.stringify({{ ref: "main" }})
-  }})
-  .then(res => {{
-    if (res.status === 204) {{
+    },
+    body: JSON.stringify({ ref: "main" })
+  })
+  .then(res => {
+    if (res.status === 204) {
       alert("✅ Screening automation pipeline triggered successfully on GitHub Actions.");
-    }} else {{
-      res.json().then(err => alert(`❌ API Rejection: \\${{err.message || res.statusText}}`));
-    }}
-  }})
-  .catch(err => {{
+    } else {
+      res.json().then(err => alert(`❌ API Rejection: ${err.message || res.statusText}`));
+    }
+  })
+  .catch(err => {
     console.error("Workflow activation fault:", err);
     alert("❌ Connection Refused: Check your internet connection or verify token CORS settings.");
-  }});
-}}
+  });
+}
 </script>
 </body>
-</html>"""
-
-with open(html_path, "w", encoding="utf-8") as f:
-    f.write(html_content)
-
-print(f"Success: Up-to-date Dashboard HTML generated completely inside {html_path}")
+</html>
