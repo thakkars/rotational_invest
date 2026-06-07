@@ -1,74 +1,55 @@
-name: Daily Rotation Refresh
+name: Rotation Dashboard
 
 on:
-  schedule:
-    - cron: '30 10 * * 1-5'   # 4:00 PM IST (UTC+5:30) = 10:30 UTC, Mon-Fri only
-  workflow_dispatch:            # Allow manual trigger from GitHub UI
 
-permissions:
-  contents: write
+  workflow_dispatch:
+
+  schedule:
+    - cron: '30 10 * * 1-5'
 
 jobs:
-  refresh:
+
+  build:
+
     runs-on: ubuntu-latest
-    timeout-minutes: 15
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+    - name: Checkout
+      uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
 
-      - name: Download existing Excel from Cloudflare R2 (if available)
-        env:
-          AWS_ACCESS_KEY_ID:     ${{ secrets.R2_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_KEY }}
-          AWS_DEFAULT_REGION:    auto
-        run: |
-          mkdir -p output
-          aws s3 cp s3://${{ secrets.R2_BUCKET }}/rotation_invest.xlsx output/rotation_invest.xlsx \
-            --endpoint-url ${{ secrets.R2_ENDPOINT }} \
-            --no-progress || echo "No existing file in R2, starting fresh."
+    - name: Install Dependencies
+      run: |
+        pip install pandas yfinance openpyxl requests
 
-      - name: Run rotation script
-        env:
-          FILE_PATH: output/rotation_invest.xlsx
-          HTML_PATH: output/index.html
-        run: python rotation_invest.py
+    - name: Update Status START
+      run: |
+        echo '{"progress":20,"message":"Fetching market data"}' > status.json
 
-      - name: Upload Excel to Cloudflare R2
-        env:
-          AWS_ACCESS_KEY_ID:     ${{ secrets.R2_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_KEY }}
-          AWS_DEFAULT_REGION:    auto
-        run: |
-          aws s3 cp output/rotation_invest.xlsx s3://${{ secrets.R2_BUCKET }}/rotation_invest.xlsx \
-            --endpoint-url ${{ secrets.R2_ENDPOINT }} \
-            --no-progress
+    - name: Run Dashboard Script
+      run: |
+        python rotation_invest.py
 
-      - name: Upload HTML dashboard to Cloudflare R2
-        env:
-          AWS_ACCESS_KEY_ID:     ${{ secrets.R2_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_KEY }}
-          AWS_DEFAULT_REGION:    auto
-        run: |
-          aws s3 cp output/index.html s3://${{ secrets.R2_BUCKET }}/index.html \
-            --endpoint-url ${{ secrets.R2_ENDPOINT }} \
-            --content-type "text/html" \
-            --no-progress
+    - name: Update Status DASHBOARD
+      run: |
+        echo '{"progress":70,"message":"Generating dashboard"}' > status.json
 
-      - name: Commit and push updated files to GitHub
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name  "GitHub Action"
-          git add output/rotation_invest.xlsx output/index.html
-          git diff --staged --quiet || git commit -m "[auto] Daily refresh $(date +'%d-%m-%Y %H:%M IST')"
-          git push
+    - name: Update Status COMPLETE
+      run: |
+        echo '{"progress":100,"message":"Completed Successfully"}' > status.json
+
+    - name: Commit Files
+      run: |
+        git config --global user.name "github-actions"
+        git config --global user.email "actions@github.com"
+
+        git add .
+
+        git commit -m "dashboard update" || echo "No changes"
+
+        git push
