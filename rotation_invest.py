@@ -141,157 +141,515 @@ def safe(v):
     return round(float(v), 4) if pd.notna(v) else None
 
 def generate_html(raw_df, gb_sig, sb_sig):
-    chart = raw_df[['Date','NB/GB','20D_H_NB_GB','20D_L_NB_GB','NB/SB','20D_H_NB_SB','20D_L_NB_SB']].dropna(subset=['NB/GB']).tail(70).copy()
+
+    chart = raw_df[['Date','NB/GB','20D_H_NB_GB','20D_L_NB_GB',
+                    'NB/SB','20D_H_NB_SB','20D_L_NB_SB',
+                    'NB_close','GB_close','SB_close']].dropna(subset=['NB/GB']).tail(70).copy()
+
     chart['Date'] = chart['Date'].dt.strftime('%d-%m-%y')
+
     lv = raw_df.dropna(subset=['20D_H_NB_GB','20D_L_NB_GB']).iloc[-1]
+
     nb_gb  = round(float(lv['NB/GB']), 4)
-    nb_sb  = round(float(lv['NB/SB']), 4)   if pd.notna(lv['NB/SB'])   else 'N/A'
+    nb_sb  = round(float(lv['NB/SB']), 4)
+
     h_nbgb = round(float(lv['20D_H_NB_GB']), 4)
     l_nbgb = round(float(lv['20D_L_NB_GB']), 4)
-    h_nbsb = round(float(lv['20D_H_NB_SB']), 4) if pd.notna(lv['20D_H_NB_SB']) else 'N/A'
-    l_nbsb = round(float(lv['20D_L_NB_SB']), 4) if pd.notna(lv['20D_L_NB_SB']) else 'N/A'
+
+    h_nbsb = round(float(lv['20D_H_NB_SB']), 4)
+    l_nbsb = round(float(lv['20D_L_NB_SB']), 4)
+
     latest_date = lv['Date'].strftime('%d-%m-%y')
-    holding_gb  = gb_sig.iloc[-1]['Buy Signal'].replace('BUY ', '') if len(gb_sig) else 'N/A'
-    holding_sb  = sb_sig.iloc[-1]['Buy Signal'].replace('BUY ', '') if len(sb_sig) else 'N/A'
+
+    nb_price = round(float(lv['NB_close']),2)
+    gb_price = round(float(lv['GB_close']),2)
+    sb_price = round(float(lv['SB_close']),2)
+
+    holding_gb = gb_sig.iloc[-1]['Buy Signal'].replace('BUY ', '') if len(gb_sig) else 'N/A'
+    holding_sb = sb_sig.iloc[-1]['Buy Signal'].replace('BUY ', '') if len(sb_sig) else 'N/A'
+
     def sig_color(s):
-        return '#1DA1F2' if 'NiftyBees' in s else '#0A2885' if 'GoldBees' in s else '#2F80ED'
-    def last5_html(df, close_col):
+        return '#2563eb' if 'NiftyBees' in s else '#ca8a04' if 'GoldBees' in s else '#64748b'
+
+    def last5_html(df):
+
         rows = ''
+
         for _, r in df.tail(5).iloc[::-1].iterrows():
+
             color = sig_color(r['Buy Signal'])
+
             ret_color = '#16a34a' if r['Returns'] and '-' not in str(r['Returns']) else '#ef4444'
-            rows += (f"<tr><td>{r['Date'].strftime('%d-%m-%y') if hasattr(r['Date'],'strftime') else r['Date']}</td>"
-                     f"<td><span class='badge' style='background:{color}'>{r['Buy Signal']}</span></td>"
-                     f"<td>{r['Entry_Price'] if pd.notna(r['Entry_Price']) else '&#8212;'}</td>"
-                     f"<td>{r['Exit_Price'] if pd.notna(r['Exit_Price']) else '&#8212;'}</td>"
-                     f"<td style='color:{ret_color};font-weight:700'>{r['Returns'] if pd.notna(r['Returns']) else '&#8212;'}</td>"
-                     f"<td>{r['20D_H_Ratio']}</td><td>{r['20D_L_Ratio']}</td></tr>")
+
+            rows += (
+                f"<tr>"
+                f"<td>{r['Date'].strftime('%d-%m-%y') if hasattr(r['Date'],'strftime') else r['Date']}</td>"
+                f"<td><span class='badge' style='background:{color}'>{r['Buy Signal']}</span></td>"
+                f"<td>{r['Entry_Price'] if pd.notna(r['Entry_Price']) else '&#8212;'}</td>"
+                f"<td>{r['Exit_Price'] if pd.notna(r['Exit_Price']) else '&#8212;'}</td>"
+                f"<td style='color:{ret_color};font-weight:700'>{r['Returns'] if pd.notna(r['Returns']) else '&#8212;'}</td>"
+                f"<td>{r['20D_H_Ratio']}</td>"
+                f"<td>{r['20D_L_Ratio']}</td>"
+                f"</tr>"
+            )
+
         return rows
+
     dates  = chart['Date'].tolist()
-    nbgb_v = [safe(x) for x in chart['NB/GB']]
-    h1_v   = [safe(x) for x in chart['20D_H_NB_GB']]
-    l1_v   = [safe(x) for x in chart['20D_L_NB_GB']]
-    nbsb_v = [safe(x) for x in chart['NB/SB']]
-    h2_v   = [safe(x) for x in chart['20D_H_NB_SB']]
-    l2_v   = [safe(x) for x in chart['20D_L_NB_SB']]
-    gb_rows = last5_html(gb_sig, 'GB_Close')
-    sb_rows = last5_html(sb_sig, 'SB_Close')
-    html = f"""<!DOCTYPE html>
-<html lang='en'>
+
+    nbgb_v = [round(float(x),4) for x in chart['NB/GB']]
+    h1_v   = [round(float(x),4) for x in chart['20D_H_NB_GB']]
+    l1_v   = [round(float(x),4) for x in chart['20D_L_NB_GB']]
+
+    nbsb_v = [round(float(x),4) for x in chart['NB/SB']]
+    h2_v   = [round(float(x),4) for x in chart['20D_H_NB_SB']]
+    l2_v   = [round(float(x),4) for x in chart['20D_L_NB_SB']]
+
+    gb_rows = last5_html(gb_sig)
+    sb_rows = last5_html(sb_sig)
+
+    html = f"""
+<!DOCTYPE html>
+<html lang="en">
+
 <head>
-<meta charset='UTF-8'>
-<meta name='viewport' content='width=device-width, initial-scale=1.0'>
-<title>Rotation Strategy Dashboard</title>
-<script src='https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'></script>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Rotation Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <style>
-:root{{
- --bg:#edf5ff;--panel:rgba(255,255,255,.86);--text:#0f1f3a;--muted:#5f708a;
- --tw:#1DA1F2;--tech:#0A2885;--tech2:#01147C;--good:#16a34a;--bad:#ef4444;
- --shadow:0 14px 40px rgba(8,20,60,.12);
+
+body{{
+    margin:0;
+    font-family:Segoe UI,Arial,sans-serif;
+    background:#f1f5f9;
+    color:#0f172a;
 }}
-*{{box-sizing:border-box;}}
-body{{margin:0;font-family:Segoe UI,Inter,Arial,sans-serif;
- background:radial-gradient(circle at 16% 18%,rgba(29,161,242,.18),transparent 26%),
- radial-gradient(circle at 82% 20%,rgba(10,40,133,.18),transparent 22%),
- linear-gradient(135deg,#f7fbff 0%,#e8f1fb 100%);color:var(--text);}}
-.container{{max-width:1500px;margin:0 auto;padding:22px;}}
-.hero{{position:relative;overflow:hidden;border-radius:28px;padding:28px;color:#fff;box-shadow:var(--shadow);
- background:linear-gradient(135deg,var(--tech2) 0%,var(--tech) 42%,var(--tw) 100%);}}
-.hero:before,.hero:after{{content:'';position:absolute;border-radius:50%;background:rgba(255,255,255,.12);}}
-.hero:before{{width:240px;height:240px;right:-70px;bottom:-70px;}}
-.hero:after{{width:140px;height:140px;right:140px;top:34px;background:rgba(255,255,255,.08);}}
-.hero h1{{font-size:2.1rem;margin:0 0 8px;}}
-.hero p{{margin:0;color:rgba(255,255,255,.93);}}
-.pills{{display:flex;flex-wrap:wrap;gap:12px;margin-top:18px;}}
-.pill{{padding:10px 16px;border-radius:999px;font-weight:800;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(8px);}}
-.grid{{display:grid;gap:16px;}}
-.kpis{{grid-template-columns:repeat(6,1fr);margin-top:16px;}}
-@media(max-width:1100px){{.kpis{{grid-template-columns:repeat(2,1fr);}}.charts{{grid-template-columns:1fr;}}}}
-.card,.chart-card,.table-wrap{{background:var(--panel);border:1px solid rgba(255,255,255,.6);border-radius:20px;box-shadow:var(--shadow);backdrop-filter:blur(10px);}}
-.card{{padding:18px;}}
-.label{{color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;font-weight:800;margin-bottom:10px;}}
-.value{{font-size:1.7rem;font-weight:900;line-height:1;}}
-.value.tw{{color:var(--tw);}}.value.tech{{color:var(--tech);}}.value.bad{{color:var(--bad);}}
-.small{{color:var(--muted);font-size:.85rem;margin-top:8px;}}
-.section-title{{margin:24px 0 12px;font-size:1.06rem;font-weight:900;}}
-.charts{{grid-template-columns:1fr 1fr;}}
-.chart-card{{padding:16px;}}
-.chart-head{{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}}
-.badge-soft{{display:inline-block;padding:6px 10px;border-radius:999px;background:linear-gradient(90deg,rgba(29,161,242,.12),rgba(10,40,133,.12));color:var(--tech2);font-size:.78rem;font-weight:900;border:1px solid #d8e7f7;}}
-canvas{{max-height:240px;}}
-.table-wrap{{overflow:hidden;margin-top:16px;}}
-.table-title{{padding:16px 18px;font-weight:900;background:linear-gradient(90deg,rgba(29,161,242,.11),rgba(10,40,133,.11));border-bottom:1px solid #e6eef8;}}
-table{{width:100%;border-collapse:collapse;}}
-th,td{{padding:12px 10px;text-align:center;border-bottom:1px solid #eef3f8;font-size:.86rem;}}
-th{{position:sticky;top:0;background:#f8fbff;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-size:.72rem;}}
-tr:hover td{{background:#fafcff;}}
-.badge{{display:inline-block;padding:6px 10px;border-radius:999px;color:#fff;font-size:.78rem;font-weight:800;}}
-.holding-bar{{display:flex;gap:16px;justify-content:center;margin:16px 0;flex-wrap:wrap;}}
-.holding-tag{{background:var(--panel);border:1px solid rgba(255,255,255,.6);border-radius:12px;padding:12px 24px;font-size:.9rem;box-shadow:var(--shadow);}}
-.holding-tag span{{font-weight:800;font-size:1.05rem;}}
-.footer-note{{margin-top:14px;color:var(--muted);font-size:.84rem;}}
+
+.container{{
+    max-width:1500px;
+    margin:auto;
+    padding:20px;
+}}
+
+.hero{{
+    background:#ffffff;
+    border-radius:24px;
+    padding:24px;
+    margin-bottom:18px;
+    box-shadow:0 4px 18px rgba(0,0,0,.08);
+}}
+
+.hero h1{{
+    margin:0;
+    font-size:2rem;
+}}
+
+.hero p{{
+    margin-top:8px;
+    color:#64748b;
+}}
+
+.workflow-box{{
+    background:#ffffff;
+    border-radius:18px;
+    padding:18px;
+    margin-bottom:18px;
+    box-shadow:0 4px 18px rgba(0,0,0,.08);
+}}
+
+.progress-wrap{{
+    width:100%;
+    height:14px;
+    background:#e2e8f0;
+    border-radius:999px;
+    overflow:hidden;
+    margin-top:12px;
+}}
+
+#workflowProgress{{
+    width:0%;
+    height:100%;
+    background:#2563eb;
+    transition:.4s;
+}}
+
+#workflowText{{
+    margin-top:10px;
+    color:#475569;
+    font-size:.92rem;
+}}
+
+.grid{{
+    display:grid;
+    gap:16px;
+}}
+
+.kpis{{
+    grid-template-columns:repeat(9,1fr);
+}}
+
+.card{{
+    background:#ffffff;
+    border-radius:20px;
+    padding:18px;
+    box-shadow:0 4px 18px rgba(0,0,0,.08);
+}}
+
+.label{{
+    color:#64748b;
+    font-size:.78rem;
+    text-transform:uppercase;
+    font-weight:700;
+}}
+
+.value{{
+    font-size:2rem;
+    font-weight:800;
+    margin-top:10px;
+}}
+
+.small{{
+    margin-top:8px;
+    color:#64748b;
+}}
+
+.section-title{{
+    margin:28px 0 14px;
+    font-size:1.2rem;
+    font-weight:800;
+}}
+
+.charts{{
+    grid-template-columns:1fr 1fr;
+}}
+
+.chart-card{{
+    background:#ffffff;
+    border-radius:22px;
+    padding:20px;
+    box-shadow:0 4px 18px rgba(0,0,0,.08);
+}}
+
+.chart-container{{
+    position:relative;
+    height:340px;
+    width:100%;
+}}
+
+canvas{{
+    width:100% !important;
+    height:100% !important;
+}}
+
+.table-wrap{{
+    background:#ffffff;
+    border-radius:22px;
+    overflow:hidden;
+    margin-top:18px;
+    box-shadow:0 4px 18px rgba(0,0,0,.08);
+}}
+
+.table-title{{
+    padding:16px 18px;
+    font-weight:800;
+    background:#eff6ff;
+}}
+
+table{{
+    width:100%;
+    border-collapse:collapse;
+}}
+
+th,td{{
+    padding:12px;
+    border-bottom:1px solid #e2e8f0;
+    text-align:center;
+}}
+
+th{{
+    background:#f8fafc;
+    font-size:.75rem;
+    color:#64748b;
+}}
+
+.badge{{
+    color:#fff;
+    padding:6px 10px;
+    border-radius:999px;
+    font-size:.78rem;
+    font-weight:700;
+}}
+
+@media(max-width:1200px){{
+    .kpis{{grid-template-columns:repeat(2,1fr);}}
+    .charts{{grid-template-columns:1fr;}}
+}}
+
 </style>
 </head>
+
 <body>
-<div class='container'>
-  <div class='hero'>
-    <h1>&#x1F504; Rotation Strategy Dashboard</h1>
-    <p>NiftyBees &#x2F; GoldBees &#x2F; SilverBees &nbsp;&#x7C;&nbsp; As of {latest_date}</p>
-    <div class='pills'>
-      <div class='pill'>Twitter Blue: #1DA1F2</div>
-      <div class='pill'>Tech Blue: #0A2885 &#x2F; #01147C</div>
-      <div class='pill'>Updated Daily at 4 PM IST</div>
-    </div>
-  </div>
-  <div class='holding-bar'>
-    <div class='holding-tag'>Currently Holding (NB&#x2F;GB): <span style='color:{sig_color(holding_gb)}'>{holding_gb}</span></div>
-    <div class='holding-tag'>Currently Holding (NB&#x2F;SB): <span style='color:{sig_color(holding_sb)}'>{holding_sb}</span></div>
-  </div>
-  <div class='grid kpis'>
-    <div class='card'><div class='label'>NB / GB</div><div class='value tw'>{nb_gb}</div><div class='small'>Current ratio</div></div>
-    <div class='card'><div class='label'>20D High NB/GB</div><div class='value tech'>{h_nbgb}</div><div class='small'>Breakout level</div></div>
-    <div class='card'><div class='label'>20D Low NB/GB</div><div class='value bad'>{l_nbgb}</div><div class='small'>Breakdown level</div></div>
-    <div class='card'><div class='label'>NB / SB</div><div class='value tw'>{nb_sb}</div><div class='small'>Current ratio</div></div>
-    <div class='card'><div class='label'>20D High NB/SB</div><div class='value tech'>{h_nbsb}</div><div class='small'>Breakout level</div></div>
-    <div class='card'><div class='label'>20D Low NB/SB</div><div class='value bad'>{l_nbsb}</div><div class='small'>Breakdown level</div></div>
-  </div>
-  <div class='section-title'>Visual Summary</div>
-  <div class='grid charts'>
-    <div class='chart-card'><div class='chart-head'><strong>NB / GB Ratio</strong><span class='badge-soft'>Last 70 days</span></div><canvas id='c1'></canvas></div>
-    <div class='chart-card'><div class='chart-head'><strong>NB / SB Ratio</strong><span class='badge-soft'>Last 70 days</span></div><canvas id='c2'></canvas></div>
-  </div>
-  <div class='section-title'>Last 5 Events</div>
-  <div class='table-wrap'>
-    <div class='table-title'>NB / GB Events</div>
-    <table><thead><tr><th>Date</th><th>Signal</th><th>Entry</th><th>Exit</th><th>Returns</th><th>20D High</th><th>20D Low</th></tr></thead>
-    <tbody>{gb_rows}</tbody></table>
-  </div>
-  <div class='table-wrap'>
-    <div class='table-title'>NB / SB Events</div>
-    <table><thead><tr><th>Date</th><th>Signal</th><th>Entry</th><th>Exit</th><th>Returns</th><th>20D High</th><th>20D Low</th></tr></thead>
-    <tbody>{sb_rows}</tbody></table>
-  </div>
-  <div class='footer-note'>Auto-refreshed daily at 4 PM IST via GitHub Actions &#x2192; Cloudflare Pages</div>
+
+<div class="container">
+
+<div class="hero">
+    <h1>Rotation Strategy Dashboard</h1>
+    <p>Updated till {latest_date}</p>
 </div>
+
+<div class="workflow-box">
+
+    <div style="font-weight:700;">
+        Workflow Status
+    </div>
+
+    <div class="progress-wrap">
+        <div id="workflowProgress"></div>
+    </div>
+
+    <div id="workflowText">
+        Idle
+    </div>
+
+</div>
+
+<div class="grid kpis">
+
+<div class="card">
+    <div class="label">NiftyBees</div>
+    <div class="value" style="color:#2563eb;">₹{nb_price}</div>
+    <div class="small">Current Price</div>
+</div>
+
+<div class="card">
+    <div class="label">GoldBees</div>
+    <div class="value" style="color:#ca8a04;">₹{gb_price}</div>
+    <div class="small">Current Price</div>
+</div>
+
+<div class="card">
+    <div class="label">SilverBees</div>
+    <div class="value" style="color:#64748b;">₹{sb_price}</div>
+    <div class="small">Current Price</div>
+</div>
+
+<div class="card">
+    <div class="label">NB / GB</div>
+    <div class="value" style="color:#2563eb;">{nb_gb}</div>
+    <div class="small">Current Ratio</div>
+</div>
+
+<div class="card">
+    <div class="label">20D High NB/GB</div>
+    <div class="value" style="color:#16a34a;">{h_nbgb}</div>
+    <div class="small">Breakout Level</div>
+</div>
+
+<div class="card">
+    <div class="label">20D Low NB/GB</div>
+    <div class="value" style="color:#ef4444;">{l_nbgb}</div>
+    <div class="small">Breakdown Level</div>
+</div>
+
+<div class="card">
+    <div class="label">NB / SB</div>
+    <div class="value" style="color:#2563eb;">{nb_sb}</div>
+    <div class="small">Current Ratio</div>
+</div>
+
+<div class="card">
+    <div class="label">20D High NB/SB</div>
+    <div class="value" style="color:#16a34a;">{h_nbsb}</div>
+    <div class="small">Breakout Level</div>
+</div>
+
+<div class="card">
+    <div class="label">20D Low NB/SB</div>
+    <div class="value" style="color:#ef4444;">{l_nbsb}</div>
+    <div class="small">Breakdown Level</div>
+</div>
+
+</div>
+
+<div class="section-title">
+Visual Summary
+</div>
+
+<div class="grid charts">
+
+<div class="chart-card">
+
+<h3>NB / GB Ratio</h3>
+
+<div class="chart-container">
+<canvas id="c1"></canvas>
+</div>
+
+</div>
+
+<div class="chart-card">
+
+<h3>NB / SB Ratio</h3>
+
+<div class="chart-container">
+<canvas id="c2"></canvas>
+</div>
+
+</div>
+
+</div>
+
+<div class="table-wrap">
+
+<div class="table-title">
+NB / GB Events
+</div>
+
+<table>
+
+<thead>
+<tr>
+<th>Date</th>
+<th>Signal</th>
+<th>Entry</th>
+<th>Exit</th>
+<th>Returns</th>
+<th>20D High</th>
+<th>20D Low</th>
+</tr>
+</thead>
+
+<tbody>
+{gb_rows}
+</tbody>
+
+</table>
+
+</div>
+
+<div class="table-wrap">
+
+<div class="table-title">
+NB / SB Events
+</div>
+
+<table>
+
+<thead>
+<tr>
+<th>Date</th>
+<th>Signal</th>
+<th>Entry</th>
+<th>Exit</th>
+<th>Returns</th>
+<th>20D High</th>
+<th>20D Low</th>
+</tr>
+</thead>
+
+<tbody>
+{sb_rows}
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
 <script>
-const labels={json.dumps(dates)};
-const nbgb={json.dumps(nbgb_v)};const h1={json.dumps(h1_v)};const l1={json.dumps(l1_v)};
-const nbsb={json.dumps(nbsb_v)};const h2={json.dumps(h2_v)};const l2={json.dumps(l2_v)};
+
+const labels = {json.dumps(dates)}
+
+const nbgb = {json.dumps(nbgb_v)}
+const h1 = {json.dumps(h1_v)}
+const l1 = {json.dumps(l1_v)}
+
+const nbsb = {json.dumps(nbsb_v)}
+const h2 = {json.dumps(h2_v)}
+const l2 = {json.dumps(l2_v)}
+
 function makeChart(id,main,hi,lo,color){{
-  new Chart(document.getElementById(id),{{type:'line',
-    data:{{labels,datasets:[
-      {{label:'Current Ratio',data:main,borderColor:color,borderWidth:3,pointRadius:0,tension:.28,fill:false}},
-      {{label:'20D High',data:hi,borderColor:'#01147C',borderWidth:2,pointRadius:0,borderDash:[6,4]}},
-      {{label:'20D Low',data:lo,borderColor:'#ef4444',borderWidth:2,pointRadius:0,borderDash:[6,4]}}
-    ]}},
-    options:{{responsive:true,plugins:{{legend:{{labels:{{color:'#5f708a'}}}}}},
-      scales:{{x:{{ticks:{{color:'#6b7b92'}},grid:{{color:'#e6eef8'}}}},y:{{ticks:{{color:'#6b7b92'}},grid:{{color:'#e6eef8'}}}}}}}}
-  );
+
+    new Chart(document.getElementById(id),{{
+
+        type:'line',
+
+        data:{{
+            labels:labels,
+            datasets:[
+                {{
+                    label:'Ratio',
+                    data:main,
+                    borderColor:color,
+                    borderWidth:3,
+                    pointRadius:0,
+                    tension:.3
+                }},
+                {{
+                    label:'20D High',
+                    data:hi,
+                    borderColor:'#16a34a',
+                    borderDash:[6,4],
+                    borderWidth:2,
+                    pointRadius:0
+                }},
+                {{
+                    label:'20D Low',
+                    data:lo,
+                    borderColor:'#ef4444',
+                    borderDash:[6,4],
+                    borderWidth:2,
+                    pointRadius:0
+                }}
+            ]
+        }},
+
+        options:{{
+            responsive:true,
+            maintainAspectRatio:false
+        }}
+
+    }});
+
 }}
-makeChart('c1',nbgb,h1,l1,'#1DA1F2');
-makeChart('c2',nbsb,h2,l2,'#0A2885');
+
+makeChart('c1',nbgb,h1,l1,'#2563eb');
+makeChart('c2',nbsb,h2,l2,'#0f172a');
+
+async function fetchWorkflowStatus(){{
+
+    try{{
+
+        const r = await fetch("status.json?t=" + new Date().getTime());
+
+        const s = await r.json();
+
+        document.getElementById("workflowText").innerText = s.message;
+
+        document.getElementById("workflowProgress").style.width = s.progress + "%";
+
+    }}catch(e){{
+        console.log(e);
+    }}
+
+}}
+
+fetchWorkflowStatus();
+
+setInterval(fetchWorkflowStatus,5000);
+
 </script>
-</body></html>"""
+
+</body>
+</html>
+"""
+
     return html
 
 # -------------------------------
