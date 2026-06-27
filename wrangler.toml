@@ -1,7 +1,12 @@
 name = "rotational-invest"
+main = "worker/index.js"
 compatibility_date = "2024-01-01"
 
 # Serve the output/ folder as static assets
 [assets]
 directory = "./output"
+binding = "ASSETS"
 not_found_handling = "single-page-application"
+
+# Secrets (set via Cloudflare dashboard or `wrangler secret put GH_PAT`):
+#   GH_PAT  — GitHub PAT with `repo` + `workflow` scopes
