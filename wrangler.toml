@@ -1,0 +1,7 @@
+name = "rotational-invest"
+compatibility_date = "2024-01-01"
+
+# Serve the output/ folder as static assets
+[assets]
+directory = "./output"
+not_found_handling = "single-page-application"
